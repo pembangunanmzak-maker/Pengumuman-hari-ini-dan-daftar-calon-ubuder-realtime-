@@ -1,0 +1,1363 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, shrink-to-fit=no">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <title>Papan pengumuman hari ini</title>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+
+        // Konfigurasi Firebase Realtime Database baru
+        const firebaseConfig = {
+            apiKey: "AIzaSyAZHZrJ_aZAY4gJAfQmxzPyXb9kJgUx704",
+            authDomain: "pengumuman-dan-calon-ubuder.firebaseapp.com",
+            databaseURL: "https://pengumuman-dan-calon-ubuder-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "pengumuman-dan-calon-ubuder",
+            storageBucket: "pengumuman-dan-calon-ubuder.firebasestorage.app",
+            messagingSenderId: "1053759088700",
+            appId: "1:1053759088700:web:750923b632a8a0f4b93b39",
+            measurementId: "G-G2G9NXD667"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app);
+        const dbRef = ref(db, 'mzak_app_data_v4');
+
+        const defaultData = {
+            jumlahOrang: [
+                { unsur: 'Jamaah MZAK', jumlah: '45' },
+                { unsur: 'Ubuder', jumlah: '12' },
+                { unsur: 'Panitia', jumlah: '8' },
+                { unsur: 'Fasilitator', jumlah: '4' }
+            ],
+            panitiaJaga: [
+                { bidang: 'Konsumsi', pic: 'Kak Kiki' },
+                { bidang: 'Keamanan', pic: 'Pak Joko' }
+            ],
+            pekerjaanHariIni: [
+                { item: 'Masak', tukang: 'Kak Kiki', helper: '13 orang' }
+            ],
+            ubuderList: [
+                { nama: 'Ahmad Fauzi', asal: 'MZ Sleman', mulai: '2026-09-01', selesai: '2026-09-05', jakon: true, jemput: false },
+                { nama: 'Budi Santoso', asal: 'MZ Bantul', mulai: '2026-09-03', selesai: '2026-09-07', jakon: false, jemput: true }
+            ],
+            lastUpdate: {
+                time: '-',
+                admin: '-'
+            }
+        };
+
+        window.appData = defaultData;
+        let isRemoteUpdate = false;
+
+        onValue(dbRef, (snapshot) => {
+            if (snapshot.exists()) {
+                const remoteData = snapshot.val();
+                if (!window.isUserTyping) {
+                    window.appData = remoteData;
+                    if(!window.appData.lastUpdate) {
+                        window.appData.lastUpdate = { time: '-', admin: '-' };
+                    }
+                    isRemoteUpdate = true;
+                    if (typeof window.renderAllTables === 'function') {
+                        window.renderAllTables();
+                    }
+                    isRemoteUpdate = false;
+                }
+            } else {
+                set(dbRef, defaultData);
+                window.appData = defaultData;
+            }
+        }, (error) => {
+            console.error("Gagal membaca database:", error);
+        });
+
+        window.saveDataToFirebase = function(adminName = 'Sistem', showNotification = true) {
+            const now = new Date();
+            const timeString = now.toLocaleDateString('id-ID', { 
+                day: '2-digit', month: 'short', year: 'numeric' 
+            }) + ', ' + now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            
+            window.appData.lastUpdate = {
+                time: timeString,
+                admin: adminName
+            };
+
+            set(dbRef, window.appData).then(() => {
+                if (showNotification) {
+                    showAutoSaveNotification();
+                }
+            }).catch((error) => {
+                alert("Gagal menyimpan perubahan: " + error.message);
+            });
+        };
+
+        function showAutoSaveNotification() {
+            const notif = document.getElementById('autoSaveNotification');
+            if (!notif) return;
+            notif.classList.add('show');
+            setTimeout(() => {
+                notif.classList.remove('show');
+            }, 2500);
+        }
+
+        function updateConnectionStatus(isOnline) {
+            const dot = document.getElementById('connectionDot');
+            if (!dot) return;
+            if (isOnline) {
+                dot.style.background = '#22c55e';
+                dot.style.boxShadow = '0 0 6px #22c55e';
+                dot.title = 'Online (Terhubung ke Server)';
+            } else {
+                dot.style.background = '#ef4444';
+                dot.style.boxShadow = '0 0 6px #ef4444';
+                dot.title = 'Offline (Terputus dari Server)';
+            }
+        }
+
+        window.addEventListener('online', () => updateConnectionStatus(true));
+        window.addEventListener('offline', () => updateConnectionStatus(false));
+        
+        setTimeout(() => {
+            updateConnectionStatus(navigator.onLine);
+        }, 500);
+    </script>
+
+    <style>
+        :root, [data-theme="light-clean"] {
+            --bg-main: #f8fafc;
+            --surface-color: #ffffff;
+            --shadow-light: #ffffff;
+            --shadow-dark: #e2e8f0;
+            --accent-blue: #0284c7;
+            --text-dark-blue: #0f172a;
+            --icon-gray: #64748b;
+            --text-primary: #1e293b;
+            --text-secondary: #64748b;
+            --text-button-gray: #334155;
+            --border-clean: #cbd5e1;
+            --table-header-bg: #f1f5f9;
+            --sub-card-bg: #f8fafc;
+        }
+
+        [data-theme="dark-gray"] {
+            --bg-main: #1e293b;
+            --surface-color: #1e293b;
+            --shadow-light: #2b3a50;
+            --shadow-dark: #121a25;
+            --accent-blue: #38bdf8;
+            --text-dark-blue: #f8fafc;
+            --icon-gray: #94a3b8;
+            --text-primary: #f1f5f9;
+            --text-secondary: #94a3b8;
+            --text-button-gray: #e2e8f0;
+            --border-clean: #475569;
+            --table-header-bg: #273548;
+            --sub-card-bg: #273548;
+        }
+
+        [data-theme="corporate-blue"] {
+            --bg-main: #0f172a;
+            --surface-color: #0f172a;
+            --shadow-light: #18253e;
+            --shadow-dark: #070b14;
+            --accent-blue: #3b82f6;
+            --text-dark-blue: #eff6ff;
+            --icon-gray: #93c5fd;
+            --text-primary: #f8fafc;
+            --text-secondary: #93c5fd;
+            --text-button-gray: #e0f2fe;
+            --border-clean: #1d4ed8;
+            --table-header-bg: #1e293b;
+            --sub-card-bg: #1e293b;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        html, body {
+            width: 100%;
+            min-height: 100vh;
+            background-color: var(--bg-main);
+            color: var(--text-primary);
+            overflow-x: hidden;
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
+
+        body {
+            display: flex;
+            flex-direction: column;
+            padding: clamp(10px, 2vw, 24px);
+            max-width: 1000px;
+            margin: 0 auto;
+            position: relative;
+        }
+
+        .main-container {
+            display: flex;
+            flex-direction: column;
+            width: 100%;
+            flex: 1;
+            gap: 16px;
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: var(--surface-color);
+            padding: 14px 20px;
+            border: 1px solid var(--border-clean);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
+            width: 100%;
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .title-container h1 {
+            font-size: clamp(15px, 3.2vw, 19px);
+            font-weight: 700;
+            color: var(--text-dark-blue);
+            line-height: 1.2;
+        }
+
+        .subtitle-row {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-top: 3px;
+        }
+
+        .title-container span {
+            font-size: clamp(11px, 2.2vw, 13px);
+            color: var(--text-secondary);
+        }
+
+        .connection-dot-clean {
+            width: 7px;
+            height: 7px;
+            background: #22c55e;
+            box-shadow: 0 0 6px #22c55e;
+            border-radius: 50%;
+            display: inline-block;
+            transition: background 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .header-icon {
+            width: 22px;
+            height: 22px;
+            stroke: var(--icon-gray);
+            stroke-width: 1.8;
+            fill: none;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+            cursor: pointer;
+            transition: stroke 0.2s ease, transform 0.3s ease;
+        }
+
+        .header-icon:hover { stroke: var(--accent-blue); transform: scale(1.1); }
+        .logout-icon:hover { stroke: #ef4444 !important; }
+
+        .section-card {
+            background: var(--surface-color);
+            border: 1px solid var(--border-clean);
+            padding: 18px 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.02);
+            position: relative;
+        }
+
+        .section-header-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--border-clean);
+            padding-bottom: 10px;
+        }
+
+        .section-title {
+            font-size: clamp(14px, 2.8vw, 16px);
+            font-weight: 600;
+            color: var(--text-dark-blue);
+        }
+
+        .time-display {
+            font-size: clamp(14px, 3vw, 16px);
+            font-weight: 600;
+            color: var(--text-dark-blue);
+        }
+
+        .weather-grid-4 {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 10px;
+            margin-top: 4px;
+        }
+
+        .weather-box {
+            background: var(--sub-card-bg);
+            border: 1px solid var(--border-clean);
+            padding: 10px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            border-radius: 4px;
+            opacity: 0.6;
+            transition: opacity 0.3s, border-color 0.3s;
+        }
+
+        .weather-box.active-weather {
+            opacity: 1;
+            border-color: var(--accent-blue);
+            box-shadow: 0 0 8px rgba(2, 132, 199, 0.15);
+        }
+
+        .weather-icon-svg {
+            width: 24px;
+            height: 24px;
+            stroke: var(--accent-blue);
+            fill: none;
+            stroke-width: 2;
+            flex-shrink: 0;
+        }
+
+        .weather-desc-wrap span {
+            display: block;
+        }
+
+        .weather-time-label {
+            font-size: 11px;
+            font-weight: 700;
+            color: var(--text-dark-blue);
+        }
+
+        .weather-state-label {
+            font-size: 10px;
+            color: var(--text-secondary);
+        }
+
+        .location-footer {
+            font-size: 12px;
+            color: var(--text-secondary);
+            margin-top: 2px;
+        }
+
+        .marquee-container {
+            width: 100%;
+            overflow: hidden;
+            white-space: nowrap;
+            box-sizing: border-box;
+            margin-top: 6px;
+            padding: 4px 0;
+            border-top: 1px dashed var(--border-clean);
+        }
+
+        .marquee-text {
+            display: inline-block;
+            padding-left: 100%;
+            animation: marquee 18s linear infinite;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--accent-blue);
+        }
+
+        .marquee-container:hover .marquee-text {
+            animation-play-state: paused;
+        }
+
+        @keyframes marquee {
+            0% { transform: translate(0, 0); }
+            100% { transform: translate(-100%, 0); }
+        }
+
+        .content-table-wrapper {
+            width: 100%;
+            overflow-x: auto;
+            border: 1px solid var(--border-clean);
+        }
+
+        table.data-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+            text-align: left;
+            white-space: nowrap;
+        }
+
+        table.data-table th, table.data-table td {
+            padding: 10px 14px;
+            border-bottom: 1px solid var(--border-clean);
+            border-right: 1px solid var(--border-clean);
+        }
+
+        table.data-table th:last-child, table.data-table td:last-child {
+            border-right: none;
+        }
+
+        table.data-table th {
+            background: var(--table-header-bg);
+            color: var(--text-dark-blue);
+            font-weight: 600;
+        }
+
+        .btn-add-row {
+            background: none;
+            border: none;
+            cursor: pointer;
+            stroke: var(--accent-blue);
+            width: 20px;
+            height: 20px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .btn-add-row:hover { transform: scale(1.15); }
+
+        .editable-cell {
+            outline: none;
+            cursor: text;
+        }
+        .editable-cell:focus {
+            background: rgba(2, 132, 199, 0.08);
+            box-shadow: inset 0 0 0 1px var(--accent-blue);
+        }
+
+        .drawer-fullscreen {
+            position: fixed;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: var(--surface-color);
+            z-index: 2500;
+            transition: left 0.3s ease;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .drawer-fullscreen.open {
+            left: 0;
+        }
+
+        .drawer-header-fs {
+            padding: 16px 24px;
+            border-bottom: 1px solid var(--border-clean);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: var(--surface-color);
+            flex-shrink: 0;
+        }
+
+        .drawer-body-fs {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            overflow-x: hidden;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .back-arrow-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+        .back-arrow-btn svg {
+            width: 18px;
+            height: 18px;
+            stroke: var(--text-primary);
+            stroke-width: 2;
+            fill: none;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(11, 15, 25, 0.5);
+            backdrop-filter: blur(4px);
+            justify-content: center;
+            align-items: center;
+            z-index: 3000;
+            padding: 16px;
+        }
+
+        .clean-modal-box {
+            background: var(--surface-color);
+            color: var(--text-primary);
+            border: 1px solid var(--border-clean);
+            padding: 20px;
+            width: 100%;
+            max-width: 380px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        }
+
+        .clean-modal-box h3 {
+            color: var(--text-dark-blue);
+            font-size: 15px;
+            font-weight: 600;
+            margin-bottom: 12px;
+        }
+
+        .form-group {
+            margin-bottom: 12px;
+        }
+
+        .form-group label {
+            display: block;
+            color: var(--text-secondary);
+            font-size: 11px;
+            font-weight: 500;
+            margin-bottom: 4px;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 9px 12px;
+            border: 1px solid var(--border-clean);
+            background: var(--bg-main);
+            outline: none;
+            font-size: 12px;
+            color: var(--text-primary);
+        }
+
+        .btn-action {
+            padding: 8px 14px;
+            border: 1px solid var(--border-clean);
+            background: var(--bg-main);
+            cursor: pointer;
+            font-weight: 500;
+            font-size: 11px;
+            margin-right: 4px;
+            margin-top: 6px;
+            color: var(--text-primary);
+        }
+
+        .btn-action:hover {
+            border-color: var(--accent-blue);
+            color: var(--accent-blue);
+        }
+
+        .theme-grid-picker {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 8px;
+            margin-top: 10px;
+        }
+
+        .theme-option-card {
+            padding: 12px 14px;
+            border: 1px solid var(--border-clean);
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 600;
+        }
+        .theme-option-card:hover { border-color: var(--accent-blue); }
+
+        .dropdown-menu-custom {
+            display: none;
+            position: absolute;
+            right: 0;
+            top: 32px;
+            background: var(--surface-color);
+            border: 1px solid var(--border-clean);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            z-index: 100;
+            min-width: 120px;
+        }
+        .dropdown-item {
+            padding: 8px 12px;
+            font-size: 12px;
+            cursor: pointer;
+            color: var(--text-primary);
+            border-bottom: 1px solid var(--border-clean);
+        }
+        .dropdown-item:last-child { border-bottom: none; }
+        .dropdown-item:hover { background: var(--table-header-bg); color: var(--accent-blue); }
+        .relative-wrapper { position: relative; display: inline-flex; align-items: center; }
+
+        .auto-save-toast {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            background: var(--surface-color);
+            color: var(--text-primary);
+            border: 1px solid var(--border-clean);
+            border-left: 4px solid #22c55e;
+            padding: 10px 16px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            font-size: 12px;
+            font-weight: 600;
+            z-index: 4000;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            opacity: 0;
+            transform: translateY(20px);
+            transition: opacity 0.3s ease, transform 0.3s ease;
+            pointer-events: none;
+        }
+        .auto-save-toast.show {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    </style>
+</head>
+<body id="pageBody">
+
+    <div class="auto-save-toast" id="autoSaveNotification">
+        <svg viewBox="0 0 24 24" width="16" height="16" stroke="#22c55e" stroke-width="2.5" fill="none"><polyline points="20 6 9 17 4 12"></polyline></svg>
+        <span>Perubahan tersimpan otomatis</span>
+    </div>
+
+    <div class="main-container">
+        <header>
+            <div class="header-left">
+                <div class="title-container">
+                    <h1>Papan pengumuman hari ini</h1>
+                    <div class="subtitle-row">
+                        <span>Koordinasi Pelayanan Itqan</span>
+                        <div class="connection-dot-clean" id="connectionDot" title="Mengecek koneksi..."></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="header-right">
+                <svg class="header-icon" id="btnThemeToggle" viewBox="0 0 24 24" title="Pilih Tema Warna">
+                    <path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.504 5.555-5.554C21.965 6.012 17.461 2 12 2z"/>
+                </svg>
+
+                <div class="relative-wrapper">
+                    <svg class="header-icon" id="btnDownloadToggle" viewBox="0 0 24 24" title="Unduh Data">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                        <polyline points="7 10 12 15 17 10"></polyline>
+                        <line x1="12" y1="15" x2="12" y2="3"></line>
+                    </svg>
+                    <div class="dropdown-menu-custom" id="downloadDropdown">
+                        <div class="dropdown-item" onclick="openDownloadModal('excel')">Excel (.xlsx)</div>
+                        <div class="dropdown-item" onclick="openDownloadModal('pdf')">PDF (.pdf)</div>
+                    </div>
+                </div>
+
+                <svg class="header-icon" id="btnOpenUbuder" viewBox="0 0 24 24" title="Daftar Calon Ubuder (Halaman 2)">
+                    <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
+                </svg>
+
+                <svg class="header-icon logout-icon" id="btnLogout" viewBox="0 0 24 24" title="Keluar Sesi" style="display: none;">
+                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+                    <polyline points="16 17 21 12 16 7"/>
+                    <line x1="21" y1="12" x2="9" y2="12"/>
+                </svg>
+
+                <svg class="header-icon" id="btnAdminAuth" viewBox="0 0 24 24" title="Masuk Admin">
+                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                    <circle cx="12" cy="7" r="4"></circle>
+                </svg>
+            </div>
+        </header>
+
+        <div class="section-card">
+            <div class="time-display" id="liveClockDisplay">Memuat Waktu...</div>
+            <div class="weather-grid-4">
+                <div class="weather-box" id="weatherPagi">
+                    <svg class="weather-icon-svg" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2m0 16v2M4.93 4.93l1.41 1.41m11.32 11.32l1.41 1.41M2 12h2m16 0h2M4.93 19.07l1.41-1.41m11.32-11.32l1.41-1.41"></path></svg>
+                    <div class="weather-desc-wrap">
+                        <span class="weather-time-label">Pagi</span>
+                        <span class="weather-state-label">Cerah Sejuk</span>
+                    </div>
+                </div>
+                <div class="weather-box" id="weatherSiang">
+                    <svg class="weather-icon-svg" viewBox="0 0 24 24"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line></svg>
+                    <div class="weather-desc-wrap">
+                        <span class="weather-time-label">Siang</span>
+                        <span class="weather-state-label">Terik Berawan</span>
+                    </div>
+                </div>
+                <div class="weather-box" id="weatherSore">
+                    <svg class="weather-icon-svg" viewBox="0 0 24 24"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"></path></svg>
+                    <div class="weather-desc-wrap">
+                        <span class="weather-time-label">Sore</span>
+                        <span class="weather-state-label">Berawan Sejuk</span>
+                    </div>
+                </div>
+                <div class="weather-box" id="weatherMalam">
+                    <svg class="weather-icon-svg" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+                    <div class="weather-desc-wrap">
+                        <span class="weather-time-label">Malam</span>
+                        <span class="weather-state-label">Tenang Damai</span>
+                    </div>
+                </div>
+            </div>
+            <div class="location-footer">Di Sardonoharjo Ngaglik Sleman Yogyakarta</div>
+            <div class="marquee-container">
+                <div class="marquee-text" id="lastUpdateMarquee">Update Terakhir Admin: Memuat...</div>
+            </div>
+        </div>
+
+        <div class="section-card">
+            <div class="section-header-row">
+                <div class="section-title">Jumlah Orang di MZAK hari ini</div>
+                <button class="btn-add-row" id="btnAddJumlahOrang" title="Tambah Baris" style="display: none;">
+                    <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                </button>
+            </div>
+            <div class="content-table-wrapper">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th style="width: 50px;">No.</th>
+                            <th>Unsur</th>
+                            <th style="width: 140px;">Jumlah</th>
+                            <th style="width: 60px; display: none;" class="col-aksi-header">Aksi</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tbodyJumlahOrang"></tbody>
+                    <tfoot>
+                        <tr style="background: var(--table-header-bg); font-weight: 700;">
+                            <td colspan="2" style="text-align: right;">Total Keseluruhan:</td>
+                            <td id="totalJumlahOrangCell" style="color: var(--accent-blue);">0</td>
+                            <td style="display: none;" class="col-aksi-row"></td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        </div>
+
+        <div class="section-card">
+            <div class="section-header-row">
+                <div class="section-title">Hubungi Panitia Jaga hari ini</div>
+                <button class="btn-add-row" id="btnAddPanitiaJaga" title="Tambah Baris" style="display: none;">
+                    <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                </button>
+            </div>
+            <div class="content-table-wrapper">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th style="width: 50px;">No.</th>
+                            <th>Bidang</th>
+                            <th>PIC</th>
+                            <th style="width: 60px; display: none;" class="col-aksi-header">Aksi</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tbodyPanitiaJaga"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="section-card">
+            <div class="section-header-row">
+                <div class="section-title">Pekerjaan hari ini</div>
+                <button class="btn-add-row" id="btnAddPekerjaan" title="Tambah Baris" style="display: none;">
+                    <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                </button>
+            </div>
+            <div class="content-table-wrapper">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th style="width: 50px;">No.</th>
+                            <th>Item Pekerjaan</th>
+                            <th>Nama Tukang</th>
+                            <th style="width: 130px;">Jumlah Helper</th>
+                            <th style="width: 60px; display: none;" class="col-aksi-header">Aksi</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tbodyPekerjaanHariIni"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="drawer-fullscreen" id="drawerUbuder">
+        <div class="drawer-header-fs">
+            <button class="back-arrow-btn" id="btnCloseUbuder">
+                <svg viewBox="0 0 24 24"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+                Kembali
+            </button>
+            <h3 style="font-size: 15px; font-weight: 600;">Daftar Calon Ubuder</h3>
+            <button class="btn-action" id="btnAddUbuderManual" style="display: none;">+ Tambah Manual</button>
+        </div>
+        <div class="drawer-body-fs">
+            <div>
+                <h4 style="font-size: 13px; font-weight: 600; color: var(--text-dark-blue); margin-bottom: 8px;">Kalkulasi Jumlah Calon Ubuder Berdasarkan Rencana Tanggal (Harian)</h4>
+                <div class="content-table-wrapper">
+                    <table class="data-table">
+                        <thead id="theadUbuderHarian"></thead>
+                        <tbody>
+                            <tr id="rowUbuderHarianCount"></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div>
+                <h4 style="font-size: 13px; font-weight: 600; color: var(--text-dark-blue); margin-bottom: 8px;">Detail Data Calon Ubuder</h4>
+                <div class="content-table-wrapper">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th style="width: 50px;">No.</th>
+                                <th style="min-width: 140px;">Nama</th>
+                                <th style="min-width: 120px;">Asal MZ</th>
+                                <th style="width: 100px;">Tgl Mulai</th>
+                                <th style="width: 100px;">Tgl Selesai</th>
+                                <th style="width: 70px; text-align: center;">Jakon</th>
+                                <th style="width: 80px; text-align: center;">Jemput</th>
+                                <th style="width: 70px; display: none;" class="col-ubuder-aksi">Aksi</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tbodyUbuderList"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal" id="modalAdminAuth">
+        <div class="clean-modal-box">
+            <h3>Masuk Admin</h3>
+            <div class="form-group">
+                <label>Masukkan PIN Akses</label>
+                <input type="password" id="pinInputBox" placeholder="Masukkan PIN">
+            </div>
+            <div style="text-align: right;">
+                <button class="btn-action" id="btnSubmitPin">Masuk</button>
+                <button class="btn-action" id="btnCancelPin">Batal</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal" id="themeModal">
+        <div class="clean-modal-box">
+            <h3>Pilih Tema Warna</h3>
+            <div class="theme-grid-picker">
+                <div class="theme-option-card" data-theme="light-clean" style="background:#ffffff; color:#1e293b;">Putih Terang (Default)</div>
+                <div class="theme-option-card" data-theme="dark-gray" style="background:#1e293b; color:#f1f5f9;">Abu-abu Arang</div>
+                <div class="theme-option-card" data-theme="corporate-blue" style="background:#0f172a; color:#f8fafc;">Biru Korporat</div>
+            </div>
+            <div style="text-align: right; margin-top: 12px;">
+                <button class="btn-action" id="btnCloseThemeModal">Tutup</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal" id="modalDownloadDialog">
+        <div class="clean-modal-box">
+            <h3 id="dlModalTitle">Konfirmasi Unduh</h3>
+            <p id="dlModalDesc" style="font-size: 12px; color: var(--text-secondary); margin-bottom: 12px;">Pilih format file untuk mengunduh laporan papan pengumuman.</p>
+            <div style="text-align: right;">
+                <button class="btn-action" id="btnExecuteDownload" style="background: var(--accent-blue); color: #ffffff; border-color: var(--accent-blue);">Unduh Sekarang</button>
+                <button class="btn-action" id="btnCloseDownloadModal">Batal</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentRole = null; 
+        let adminLabelName = '';
+        let selectedDownloadType = null;
+        window.isUserTyping = false;
+        let typingTimer = null;
+
+        window.appData = window.appData || {
+            jumlahOrang: [],
+            panitiaJaga: [],
+            pekerjaanHariIni: [],
+            ubuderList: [],
+            lastUpdate: { time: '-', admin: '-' }
+        };
+
+        document.addEventListener('DOMContentLoaded', () => {
+            initClockAndWeather();
+
+            document.getElementById('btnThemeToggle').onclick = () => document.getElementById('themeModal').style.display = 'flex';
+            document.getElementById('btnCloseThemeModal').onclick = () => document.getElementById('themeModal').style.display = 'none';
+            document.querySelectorAll('.theme-option-card').forEach(card => {
+                card.onclick = function() {
+                    document.documentElement.setAttribute('data-theme', this.getAttribute('data-theme'));
+                    document.getElementById('themeModal').style.display = 'none';
+                };
+            });
+
+            document.getElementById('btnAdminAuth').onclick = () => {
+                document.getElementById('pinInputBox').value = '';
+                document.getElementById('modalAdminAuth').style.display = 'flex';
+            };
+            document.getElementById('btnCancelPin').onclick = () => document.getElementById('modalAdminAuth').style.display = 'none';
+            document.getElementById('btnSubmitPin').onclick = verifyAdminPin;
+            document.getElementById('btnLogout').onclick = logoutAdmin;
+
+            const dlToggle = document.getElementById('btnDownloadToggle');
+            const dlDropdown = document.getElementById('downloadDropdown');
+            dlToggle.onclick = (e) => {
+                e.stopPropagation();
+                dlDropdown.style.display = dlDropdown.style.display === 'block' ? 'none' : 'block';
+            };
+            window.onclick = () => { dlDropdown.style.display = 'none'; };
+
+            document.getElementById('btnOpenUbuder').onclick = () => document.getElementById('drawerUbuder').classList.add('open');
+            document.getElementById('btnCloseUbuder').onclick = () => document.getElementById('drawerUbuder').classList.remove('open');
+
+            document.getElementById('btnAddJumlahOrang').onclick = () => {
+                if (!currentRole) {
+                    alert('Anda harus masuk sebagai Admin untuk menambah data.');
+                    return;
+                }
+                window.appData.jumlahOrang.push({ unsur: 'Unsur Baru', jumlah: '0' });
+                saveAndRefreshInstant();
+            };
+
+            document.getElementById('btnAddPanitiaJaga').onclick = () => {
+                if (!currentRole) {
+                    alert('Anda harus masuk sebagai Admin untuk menambah data.');
+                    return;
+                }
+                window.appData.panitiaJaga.push({ bidang: 'Bidang Baru', pic: 'Nama PIC' });
+                saveAndRefreshInstant();
+            };
+
+            document.getElementById('btnAddPekerjaan').onclick = () => {
+                if (!currentRole) {
+                    alert('Anda harus masuk sebagai Admin untuk menambah data.');
+                    return;
+                }
+                window.appData.pekerjaanHariIni.push({ item: 'Pekerjaan Baru', tukang: 'Nama Tukang', helper: '0 orang' });
+                saveAndRefreshInstant();
+            };
+
+            document.getElementById('btnAddUbuderManual').onclick = () => {
+                if (!currentRole) {
+                    alert('Anda harus masuk sebagai Admin terlebih dahulu.');
+                    return;
+                }
+                window.appData.ubuderList.push({ nama: 'Nama Baru', asal: 'Asal MZ', mulai: '2026-09-04', selesai: '2026-09-10', jakon: false, jemput: false });
+                saveAndRefreshUbuderInstant();
+            };
+
+            document.getElementById('btnCloseDownloadModal').onclick = () => {
+                document.getElementById('modalDownloadDialog').style.display = 'none';
+            };
+            document.getElementById('btnExecuteDownload').onclick = () => {
+                document.getElementById('modalDownloadDialog').style.display = 'none';
+                executeDownloadFile(selectedDownloadType);
+            };
+
+            window.renderAllTables();
+        });
+
+        function initClockAndWeather() {
+            function updateTime() {
+                const now = new Date();
+                const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+                const dateStr = now.toLocaleDateString('id-ID', options);
+                const h = String(now.getHours()).padStart(2, '0');
+                const m = String(now.getMinutes()).padStart(2, '0');
+                const s = String(now.getSeconds()).padStart(2, '0');
+                const clockEl = document.getElementById('liveClockDisplay');
+                if(clockEl) clockEl.innerText = `${dateStr}, ${h}:${m}:${s}`;
+
+                const hour = now.getHours();
+                ['weatherPagi', 'weatherSiang', 'weatherSore', 'weatherMalam'].forEach(id => {
+                    const el = document.getElementById(id);
+                    if(el) el.classList.remove('active-weather');
+                });
+
+                if (hour >= 5 && hour < 11) {
+                    document.getElementById('weatherPagi')?.classList.add('active-weather');
+                } else if (hour >= 11 && hour < 15) {
+                    document.getElementById('weatherSiang')?.classList.add('active-weather');
+                } else if (hour >= 15 && hour < 18) {
+                    document.getElementById('weatherSore')?.classList.add('active-weather');
+                } else {
+                    document.getElementById('weatherMalam')?.classList.add('active-weather');
+                }
+            }
+            updateTime();
+            setInterval(updateTime, 1000);
+        }
+
+        function verifyAdminPin() {
+            const pin = document.getElementById('pinInputBox').value.trim();
+            if (pin === 'panitia513') {
+                currentRole = 'admin1';
+                adminLabelName = 'Admin 1 (Panitia)';
+                alert('Berhasil Masuk sebagai Admin 1 (Panitia)');
+            } else if (pin === 'pelayanan513') {
+                currentRole = 'admin2';
+                adminLabelName = 'Admin 2 (Pelayanan)';
+                alert('Berhasil Masuk sebagai Admin 2 (Pelayanan)');
+            } else {
+                alert('PIN Salah!');
+                return;
+            }
+            document.getElementById('modalAdminAuth').style.display = 'none';
+            document.getElementById('btnLogout').style.display = 'inline-block';
+            window.renderAllTables();
+        }
+
+        function logoutAdmin() {
+            currentRole = null;
+            adminLabelName = '';
+            alert('Keluar dari sesi admin.');
+            document.getElementById('btnLogout').style.display = 'none';
+            window.renderAllTables();
+        }
+
+        function saveAndRefreshInstant() {
+            if (typeof window.saveDataToFirebase === 'function') {
+                window.saveDataToFirebase(adminLabelName || 'Admin', true);
+            }
+            window.renderAllTables();
+        }
+
+        function saveAndRefreshUbuderInstant() {
+            if (typeof window.saveDataToFirebase === 'function') {
+                window.saveDataToFirebase(adminLabelName || 'Admin', true);
+            }
+            renderUbuderTable();
+        }
+
+        function updateLastUpdateDisplay() {
+            const marqueeEl = document.getElementById('lastUpdateMarquee');
+            if (!marqueeEl) return;
+            
+            const lu = window.appData.lastUpdate;
+            if (lu && lu.time && lu.time !== '-') {
+                marqueeEl.innerText = `📢 Update Terakhir Oleh: ${lu.admin} pada ${lu.time}`;
+            } else {
+                marqueeEl.innerText = `📢 Update Terakhir Oleh: - Belum ada data pembaruan -`;
+            }
+        }
+
+        window.renderAllTables = function() {
+            const canEditH1 = (currentRole === 'admin1' || currentRole === 'admin2');
+            const canEditH2 = (currentRole === 'admin1' || currentRole === 'admin2');
+
+            const btnJO = document.getElementById('btnAddJumlahOrang');
+            const btnPJ = document.getElementById('btnAddPanitiaJaga');
+            const btnPK = document.getElementById('btnAddPekerjaan');
+            const btnUBU = document.getElementById('btnAddUbuderManual');
+
+            if(btnJO) btnJO.style.display = canEditH1 ? 'inline-flex' : 'none';
+            if(btnPJ) btnPJ.style.display = canEditH1 ? 'inline-flex' : 'none';
+            if(btnPK) btnPK.style.display = canEditH1 ? 'inline-flex' : 'none';
+            if(btnUBU) btnUBU.style.display = canEditH2 ? 'inline-block' : 'none';
+
+            updateLastUpdateDisplay();
+
+            const tbodyJO = document.getElementById('tbodyJumlahOrang');
+            if (tbodyJO) {
+                tbodyJO.innerHTML = '';
+                let totalOrang = 0;
+
+                window.appData.jumlahOrang.forEach((item, idx) => {
+                    let numericVal = parseInt(item.jumlah) || 0;
+                    totalOrang += numericVal;
+
+                    tbodyJO.innerHTML += `<tr>
+                        <td>${idx + 1}</td>
+                        <td><span class="${canEditH1 ? 'editable-cell' : ''}" ${canEditH1 ? `contenteditable="true" oninput="handleFieldInput('jumlahOrang', ${idx}, 'unsur', this.innerText)"` : ''}>${item.unsur}</span></td>
+                        <td><span class="${canEditH1 ? 'editable-cell' : ''}" ${canEditH1 ? `contenteditable="true" oninput="handleFieldInput('jumlahOrang', ${idx}, 'jumlah', this.innerText)"` : ''}>${item.jumlah}</span></td>
+                        ${canEditH1 ? `<td><button class="btn-action" style="padding:2px 6px; color:#dc2626;" onclick="deleteRow('jumlahOrang', ${idx})">Hapus</button></td>` : ''}
+                    </tr>`;
+                });
+                const totalCell = document.getElementById('totalJumlahOrangCell');
+                if(totalCell) totalCell.innerText = totalOrang + ' orang';
+            }
+
+            const tbodyPJ = document.getElementById('tbodyPanitiaJaga');
+            if (tbodyPJ) {
+                tbodyPJ.innerHTML = '';
+                window.appData.panitiaJaga.forEach((item, idx) => {
+                    tbodyPJ.innerHTML += `<tr>
+                        <td>${idx + 1}</td>
+                        <td><span class="${canEditH1 ? 'editable-cell' : ''}" ${canEditH1 ? `contenteditable="true" oninput="handleFieldInput('panitiaJaga', ${idx}, 'bidang', this.innerText)"` : ''}>${item.bidang}</span></td>
+                        <td><span class="${canEditH1 ? 'editable-cell' : ''}" ${canEditH1 ? `contenteditable="true" oninput="handleFieldInput('panitiaJaga', ${idx}, 'pic', this.innerText)"` : ''}>${item.pic}</span></td>
+                        ${canEditH1 ? `<td><button class="btn-action" style="padding:2px 6px; color:#dc2626;" onclick="deleteRow('panitiaJaga', ${idx})">Hapus</button></td>` : ''}
+                    </tr>`;
+                });
+            }
+
+            const tbodyPK = document.getElementById('tbodyPekerjaanHariIni');
+            if (tbodyPK) {
+                tbodyPK.innerHTML = '';
+                window.appData.pekerjaanHariIni.forEach((item, idx) => {
+                    tbodyPK.innerHTML += `<tr>
+                        <td>${idx + 1}</td>
+                        <td><span class="${canEditH1 ? 'editable-cell' : ''}" ${canEditH1 ? `contenteditable="true" oninput="handleFieldInput('pekerjaanHariIni', ${idx}, 'item', this.innerText)"` : ''}>${item.item}</span></td>
+                        <td><span class="${canEditH1 ? 'editable-cell' : ''}" ${canEditH1 ? `contenteditable="true" oninput="handleFieldInput('pekerjaanHariIni', ${idx}, 'tukang', this.innerText)"` : ''}>${item.tukang}</span></td>
+                        <td><span class="${canEditH1 ? 'editable-cell' : ''}" ${canEditH1 ? `contenteditable="true" oninput="handleFieldInput('pekerjaanHariIni', ${idx}, 'helper', this.innerText)"` : ''}>${item.helper}</span></td>
+                        ${canEditH1 ? `<td><button class="btn-action" style="padding:2px 6px; color:#dc2626;" onclick="deleteRow('pekerjaanHariIni', ${idx})">Hapus</button></td>` : ''}
+                    </tr>`;
+                });
+            }
+
+            document.querySelectorAll('.col-aksi-header').forEach(el => el.style.display = canEditH1 ? 'table-cell' : 'none');
+            document.querySelectorAll('.col-aksi-row').forEach(el => el.style.display = canEditH1 ? 'table-cell' : 'none');
+
+            renderUbuderTable();
+        };
+
+        function formatDateShort(dateString) {
+            if (!dateString) return '';
+            let parts = dateString.split('-');
+            if (parts.length === 3) {
+                let yy = parts[0].slice(-2);
+                return `${parts[2]}/${parts[1]}/${yy}`;
+            }
+            return dateString;
+        }
+
+        function renderUbuderTable() {
+            const canEditH2 = (currentRole === 'admin1' || currentRole === 'admin2');
+            const tbodyU = document.getElementById('tbodyUbuderList');
+            if (!tbodyU) return;
+
+            tbodyU.innerHTML = '';
+            
+            window.appData.ubuderList.forEach((item, idx) => {
+                let fmtMulai = formatDateShort(item.mulai);
+                let fmtSelesai = formatDateShort(item.selesai);
+
+                tbodyU.innerHTML += `<tr>
+                    <td>${idx + 1}</td>
+                    <td><span class="${canEditH2 ? 'editable-cell' : ''}" ${canEditH2 ? `contenteditable="true" oninput="handleUbuderFieldInput(${idx}, 'nama', this.innerText)"` : ''}>${item.nama}</span></td>
+                    <td><span class="${canEditH2 ? 'editable-cell' : ''}" ${canEditH2 ? `contenteditable="true" oninput="handleUbuderFieldInput(${idx}, 'asal', this.innerText)"` : ''}>${item.asal}</span></td>
+                    <td><span class="${canEditH2 ? 'editable-cell' : ''}" ${canEditH2 ? `contenteditable="true" oninput="handleUbuderFieldInput(${idx}, 'mulai', this.innerText)"` : ''}>${fmtMulai}</span></td>
+                    <td><span class="${canEditH2 ? 'editable-cell' : ''}" ${canEditH2 ? `contenteditable="true" oninput="handleUbuderFieldInput(${idx}, 'selesai', this.innerText)"` : ''}>${fmtSelesai}</span></td>
+                    <td style="text-align: center;"><input type="checkbox" ${item.jakon ? 'checked' : ''} onchange="updateUbuderCheckbox(${idx}, 'jakon', this.checked)"></td>
+                    <td style="text-align: center;"><input type="checkbox" ${item.jemput ? 'checked' : ''} onchange="updateUbuderCheckbox(${idx}, 'jemput', this.checked)"></td>
+                    ${canEditH2 ? `<td><button class="btn-action" style="padding:2px 6px; color:#dc2626;" onclick="deleteUbuder(${idx})">Hapus</button></td>` : ''}
+                </tr>`;
+            });
+            document.querySelectorAll('.col-ubuder-aksi').forEach(el => el.style.display = canEditH2 ? 'table-cell' : 'none');
+
+            renderUbuderDailyStats();
+        }
+
+        function renderUbuderDailyStats() {
+            let datesMap = {};
+
+            window.appData.ubuderList.forEach(ub => {
+                if (!ub.mulai || !ub.selesai) return;
+                let start = new Date(ub.mulai);
+                let end = new Date(ub.selesai);
+                
+                if (isNaN(start) || isNaN(end)) return;
+
+                let curr = new Date(start);
+                while (curr <= end) {
+                    let dateStr = curr.toISOString().split('T')[0];
+                    if (!datesMap[dateStr]) {
+                        datesMap[dateStr] = 0;
+                    }
+                    datesMap[dateStr]++;
+                    curr.setDate(curr.getDate() + 1);
+                }
+            });
+
+            let sortedDates = Object.keys(datesMap).sort();
+            const theadHarian = document.getElementById('theadUbuderHarian');
+            const rowHarianCount = document.getElementById('rowUbuderHarianCount');
+
+            if (!theadHarian || !rowHarianCount) return;
+
+            if (sortedDates.length === 0) {
+                theadHarian.innerHTML = `<tr><th>Belum ada data rencana tanggal aktif</th></tr>`;
+                rowHarianCount.innerHTML = `<td>0 orang</td>`;
+                return;
+            }
+
+            let headerHTML = '<tr>';
+            let countHTML = '<tr>';
+
+            sortedDates.forEach(dateStr => {
+                let d = new Date(dateStr);
+                let dayName = d.toLocaleDateString('id-ID', { weekday: 'short' });
+                let formattedDate = d.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
+                
+                headerHTML += `<th style="text-align: center; min-width: 110px;">${dayName}, ${formattedDate}</th>`;
+                countHTML += `<td style="text-align: center; font-weight: 600; color: var(--accent-blue);">${datesMap[dateStr]} orang</td>`;
+            });
+
+            headerHTML += '</tr>';
+            countHTML += '</tr>';
+
+            theadHarian.innerHTML = headerHTML;
+            rowHarianCount.innerHTML = countHTML;
+        }
+
+        window.handleFieldInput = function(category, idx, field, val) {
+            window.isUserTyping = true;
+            window.appData[category][idx][field] = val.trim();
+            
+            if (category === 'jumlahOrang' && field === 'jumlah') {
+                let totalOrang = 0;
+                window.appData.jumlahOrang.forEach(item => {
+                    totalOrang += parseInt(item.jumlah) || 0;
+                });
+                const totalCell = document.getElementById('totalJumlahOrangCell');
+                if(totalCell) totalCell.innerText = totalOrang + ' orang';
+            }
+
+            clearTimeout(typingTimer);
+            typingTimer = setTimeout(() => {
+                if (typeof window.saveDataToFirebase === 'function') {
+                    window.saveDataToFirebase(adminLabelName || 'Admin', true);
+                }
+                window.isUserTyping = false;
+            }, 600);
+        };
+
+        window.deleteRow = function(category, idx) {
+            window.appData[category].splice(idx, 1);
+            saveAndRefreshInstant();
+        };
+
+        window.handleUbuderFieldInput = function(idx, field, val) {
+            if (!currentRole) return;
+            window.isUserTyping = true;
+            let cleanVal = val.trim();
+            if ((field === 'mulai' || field === 'selesai') && cleanVal.includes('/')) {
+                let p = cleanVal.split('/');
+                if (p.length === 3) {
+                    let fullYear = p[2].length === 2 ? '20' + p[2] : p[2];
+                    cleanVal = `${fullYear}-${p[1]}-${p[0]}`;
+                }
+            }
+            window.appData.ubuderList[idx][field] = cleanVal;
+
+            clearTimeout(typingTimer);
+            typingTimer = setTimeout(() => {
+                if (typeof window.saveDataToFirebase === 'function') {
+                    window.saveDataToFirebase(adminLabelName || 'Admin', true);
+                }
+                renderUbuderDailyStats();
+                window.isUserTyping = false;
+            }, 600);
+        };
+
+        window.updateUbuderCheckbox = function(idx, field, val) {
+            if (!currentRole) return;
+            window.appData.ubuderList[idx][field] = val;
+            saveAndRefreshUbuderInstant();
+        };
+
+        window.deleteUbuder = function(idx) {
+            if (!currentRole) return;
+            window.appData.ubuderList.splice(idx, 1);
+            saveAndRefreshUbuderInstant();
+        };
+
+        window.openDownloadModal = function(type) {
+            selectedDownloadType = type;
+            const titleEl = document.getElementById('dlModalTitle');
+            const descEl = document.getElementById('dlModalDesc');
+            if (type === 'excel') {
+                titleEl.innerText = 'Unduh Laporan ke Excel';
+                descEl.innerText = 'File akan diunduh dalam format lembar kerja Excel (.xlsx). Lanjutkan?';
+            } else {
+                titleEl.innerText = 'Unduh Laporan ke PDF';
+                descEl.innerText = 'File laporan akan disusun dalam format dokumen PDF (.pdf). Lanjutkan?';
+            }
+            document.getElementById('modalDownloadDialog').style.display = 'flex';
+        };
+
+        function executeDownloadFile(type) {
+            if (type === 'excel') {
+                const wb = XLSX.utils.book_new();
+
+                const ws1Data = [["No.", "Unsur", "Jumlah"]];
+                window.appData.jumlahOrang.forEach((item, i) => ws1Data.push([i+1, item.unsur, item.jumlah]));
+                const ws1 = XLSX.utils.aoa_to_sheet(ws1Data);
+                XLSX.utils.book_append_sheet(wb, ws1, "Jumlah Orang");
+
+                const ws2Data = [["No.", "Bidang", "PIC"]];
+                window.appData.panitiaJaga.forEach((item, i) => ws2Data.push([i+1, item.bidang, item.pic]));
+                const ws2 = XLSX.utils.aoa_to_sheet(ws2Data);
+                XLSX.utils.book_append_sheet(wb, ws2, "Panitia Jaga");
+
+                const ws3Data = [["No.", "Item Pekerjaan", "Nama Tukang", "Jumlah Helper"]];
+                window.appData.pekerjaanHariIni.forEach((item, i) => ws3Data.push([i+1, item.item, item.tukang, item.helper]));
+                const ws3 = XLSX.utils.aoa_to_sheet(ws3Data);
+                XLSX.utils.book_append_sheet(wb, ws3, "Pekerjaan Hari Ini");
+
+                const ws4Data = [["No.", "Nama", "Asal MZ", "Tgl Mulai", "Tgl Selesai", "Jakon", "Jemput"]];
+                window.appData.ubuderList.forEach((item, i) => ws4Data.push([i+1, item.nama, item.asal, item.mulai, item.selesai, item.jakon ? 'Ya' : 'Tidak', item.jemput ? 'Ya' : 'Tidak']));
+                const ws4 = XLSX.utils.aoa_to_sheet(ws4Data);
+                XLSX.utils.book_append_sheet(wb, ws4, "Calon Ubuder");
+
+                XLSX.writeFile(wb, "Papan_Pengumuman_MZAK.xlsx");
+            } else if (type === 'pdf') {
+                const { jsPDF } = window.jspdf;
+                const doc = new jsPDF();
+
+                doc.setFontSize(14);
+                doc.text("Papan Pengumuman Hari Ini - MZAK", 14, 15);
+                doc.setFontSize(10);
+                doc.text("Koordinasi Pelayanan Itqan", 14, 22);
+
+                let startY = 30;
+
+                doc.setFontSize(11);
+                doc.text("1. Jumlah Orang di MZAK", 14, startY);
+                let body1 = window.appData.jumlahOrang.map((item, i) => [i+1, item.unsur, item.jumlah]);
+                doc.autoTable({ startY: startY + 4, head: [['No', 'Unsur', 'Jumlah']], body: body1 });
+
+                let finalY = doc.lastAutoTable.finalY + 10;
+                doc.text("2. Panitia Jaga", 14, finalY);
+                let body2 = window.appData.panitiaJaga.map((item, i) => [i+1, item.bidang, item.pic]);
+                doc.autoTable({ startY: finalY + 4, head: [['No', 'Bidang', 'PIC']], body: body2 });
+
+                finalY = doc.lastAutoTable.finalY + 10;
+                doc.text("3. Pekerjaan Hari Ini", 14, finalY);
+                let body3 = window.appData.pekerjaanHariIni.map((item, i) => [i+1, item.item, item.tukang, item.helper]);
+                doc.autoTable({ startY: finalY + 4, head: [['No', 'Item', 'Tukang', 'Helper']], body: body3 });
+
+                doc.addPage();
+                doc.text("4. Daftar Calon Ubuder", 14, 15);
+                let body4 = window.appData.ubuderList.map((item, i) => [i+1, item.nama, item.asal, item.mulai, item.selesai, item.jakon ? 'Ya' : 'Tidak', item.jemput ? 'Ya' : 'Tidak']);
+                doc.autoTable({ startY: 20, head: [['No', 'Nama', 'Asal MZ', 'Mulai', 'Selesai', 'Jakon', 'Jemput']], body: body4 });
+
+                doc.save("Papan_Pengumuman_MZAK.pdf");
+            }
+        }
+    </script>
+</body>
+</html>
